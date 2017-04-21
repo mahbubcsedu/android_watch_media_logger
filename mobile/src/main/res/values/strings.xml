@@ -1,0 +1,62 @@
+<resources>
+    <string name="app_name">AndroidWearSensorData</string>
+
+    <string name="ACCURACY">accuracy</string>
+    <string name="TIMESTAMP">timestamp</string>
+    <string name="VALUES">values</string>
+    <string name="FILTER">filter</string>
+    <string name="START_RECORDING_PATH">/start</string>
+    <string name="STOP_RECORDING_PATH">/stop</string>
+    <string name="action_export">Export Data</string>
+    <string name="start">Start</string>
+    <string name="stop">Stop</string>
+    <string name="tag">Tag</string>
+    <string name="dim1">Dimension 1</string>
+    <string name="dim2">Dimension 2</string>
+    <string name="dim3">Dimension 3</string>
+    <string name="dim4">Dimension 4</string>
+    <string name="dim5">Dimension 5</string>
+    <string name="dim6">Dimension 6</string>
+    <string name="title">Sensor Data Recording</string>
+    <string name="waiting_message">Waiting for sensor input from a wearable..</string>
+    <string name="server_url">https://eclipse.umbc.edu/rtv/androidsensor/public/addsensors</string>
+
+    <string name="loading_available_wears">Loading wears........</string>
+
+    <string name="title_activity_settings">Settings</string>
+
+    <!-- Strings related to Settings -->
+
+    <!-- Example General settings -->
+
+    <string name="pref_title_storage_location">Storage location</string>
+    <string name="pref_text_storage_location">Turn on switch to store data at remote wearable
+    </string>
+
+
+
+    <!-- Example settings for Data & Sync -->
+    <string name="pref_header_data_sync">Data &amp; sync</string>
+
+    <string name="pref_title_sensor_frequency">Sync frequency</string>
+
+
+    <string-array name="pref_sensor_frequency">
+        <item>SENSOR_DELAY_FASTEST</item>
+        <item>SENSOR_DELAY_GAME</item>
+        <item>SENSOR_DELAY_NORMAL</item>
+        <item>SENSOR_DELAY_UI</item>
+
+        <item>Custom</item>
+    </string-array>
+    <string-array  name="pref_sensor_frequency_list_value">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>4</item>
+
+    </string-array>
+
+
+</resources>
