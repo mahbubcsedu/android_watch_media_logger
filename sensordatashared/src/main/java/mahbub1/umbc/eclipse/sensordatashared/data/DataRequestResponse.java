@@ -11,6 +11,7 @@ public class DataRequestResponse {
     private List<DataBatch> dataBatches;
     private long startTimestamp;
     private long endTimestamp;
+    private long dataSize;
 
     public DataRequestResponse() {
     }
@@ -57,6 +58,13 @@ public class DataRequestResponse {
     }
 
 
+    public long getDataSize() {
+        return dataSize;
+    }
+
+    public void setDataSize(long dataSize) {
+        this.dataSize = dataSize;
+    }
 
     public void setDataBatches(List<DataBatch> dataBatches) {
         this.dataBatches = dataBatches;

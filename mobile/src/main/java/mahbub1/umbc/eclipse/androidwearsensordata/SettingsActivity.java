@@ -52,6 +52,7 @@ public class SettingsActivity extends AppCompatPreferenceActivity {
 
         // Load the preferences from an XML resource
         addPreferencesFromResource(R.xml.pref_general);
+
         //bindPreferenceSummaryToValue(findPreference("storage_switch"));
         bindPreferenceSummaryToValue(findPreference("frequency_key"));
     }

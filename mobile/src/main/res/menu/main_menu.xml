@@ -14,5 +14,11 @@
                 android:title="Settings"
             android:orderInCategory="200"
             app:showAsAction="ifRoom"></item>
+    <item
+        android:id="@+id/action_export_list"
+        android:title="Activity List"
+        android:orderInCategory="200"
+        app:showAsAction="ifRoom"></item>
+
 
 </menu>

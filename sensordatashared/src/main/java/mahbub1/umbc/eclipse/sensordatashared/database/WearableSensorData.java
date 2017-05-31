@@ -6,7 +6,7 @@ package mahbub1.umbc.eclipse.sensordatashared.database;
 
 public class WearableSensorData {
     private String android_device;
-    //private long timestamp;
+    private long sensorTimestamp;
     private float val1;
     private float val2;
     private float val3;
@@ -23,6 +23,14 @@ public class WearableSensorData {
     private String datasource; //sensor_name
     //private long sensorType;
     private long tbId;
+
+    public long getSensorTimestamp() {
+        return sensorTimestamp;
+    }
+
+    public void setSensorTimestamp(long sensorTimestamp) {
+        this.sensorTimestamp = sensorTimestamp;
+    }
 
     public int getAccuracy() {
         return accuracy;

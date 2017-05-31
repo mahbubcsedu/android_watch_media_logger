@@ -14,7 +14,7 @@ import java.util.List;
 
 public class DataBatch {
     public static final int CAPACITY_UNLIMITED = -1;
-    public static final int CAPACITY_DEFAULT = 1000;
+    public static final int CAPACITY_DEFAULT = 2000;
 
     private int type;
     private String source;

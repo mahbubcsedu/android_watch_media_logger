@@ -36,6 +36,14 @@
             android:label="ExportActivty"
             android:parentActivityName=".SecondaryActivity"></activity>
 
+        <activity
+            android:name=".RecordingListActivity"
+            android:label="RecordingList"
+            android:parentActivityName=".SecondaryActivity">
+
+        </activity>
+
+
         <service android:name=".SensorReceiverService">
             <intent-filter>
                 <action android:name="com.google.android.gms.wearable.BIND_LISTENER" />

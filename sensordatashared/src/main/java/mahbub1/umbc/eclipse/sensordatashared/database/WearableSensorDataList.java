@@ -1,4 +1,4 @@
-package mahbub1.umbc.eclipse.sensordatashared.data;
+package mahbub1.umbc.eclipse.sensordatashared.database;
 
 import io.realm.RealmObject;
 import io.realm.annotations.PrimaryKey;
@@ -14,6 +14,8 @@ public class WearableSensorDataList extends RealmObject{
     private String status;
     private String jsonAsString;
     private String androidDevice;
+    private String source;
+    private int type;
 
     public long getId() {
         return id;
@@ -47,5 +49,21 @@ public class WearableSensorDataList extends RealmObject{
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public String getSource() {
+        return source;
+    }
+
+    public void setSource(String source) {
+        this.source = source;
+    }
+
+    public int getType() {
+        return type;
+    }
+
+    public void setType(int type) {
+        this.type = type;
     }
 }

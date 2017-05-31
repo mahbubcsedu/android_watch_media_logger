@@ -3,16 +3,21 @@ package mahbub1.umbc.eclipse.androidwearsensordata;
 import android.annotation.SuppressLint;
 import android.app.Notification;
 import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
+import android.os.Bundle;
 import android.os.IBinder;
 import android.os.PowerManager;
 import android.os.PowerManager.WakeLock;
 import android.support.annotation.Nullable;
+import android.support.v4.app.NotificationCompat;
+import android.support.v4.app.NotificationManagerCompat;
+import android.support.v4.app.TaskStackBuilder;
 import android.util.Log;
 
 import java.util.Arrays;
@@ -24,14 +29,18 @@ import java.util.concurrent.ScheduledExecutorService;
 
 import mahbub1.umbc.eclipse.sensordatashared.data.Data;
 import mahbub1.umbc.eclipse.sensordatashared.data.DataBatch;
+import mahbub1.umbc.eclipse.sensordatashared.representation.MatrixF4x4;
 import mahbub1.umbc.eclipse.sensordatashared.sensors.SensorNames;
+import mahbub1.umbc.eclipse.sensordatashared.status.StorageStatus;
+
+import static android.hardware.SensorManager.SENSOR_DELAY_NORMAL;
 
 /**
  * Created by mahbub on 1/24/17.
  */
 
-public class SensorDataCollectionServices extends Service implements SensorEventListener {
-    private static final String TAG = SensorDataCollectionServices.class.getSimpleName(); // set tag for this service
+public class SensorServices extends Service implements SensorEventListener {
+    private static final String TAG = SensorServices.class.getSimpleName(); // set tag for this service
 
 
     private Map<Integer, DataBatch> sensorDataBatches;
@@ -60,45 +69,114 @@ public class SensorDataCollectionServices extends Service implements SensorEvent
     private final static int SENSOR_STEP_COUNTER = Sensor.TYPE_STEP_COUNTER;
     private final static int SENSOR_GEOMAGNETIC_ROTATION_VECTOR = Sensor.TYPE_GEOMAGNETIC_ROTATION_VECTOR;
     private final static int SENSOR_HEARTRATE = Sensor.TYPE_HEART_RATE;
-
+    protected MatrixF4x4 currentOrientationRotationMatrix;
     // get instance of sensor manager to get sensor services
     SensorManager mSensorManager;
 
     private Sensor mHeartrateSensor;
 
 
+    // Create a constant to convert nanoseconds to seconds.
+    private static final float NS2S = 1.0f / 1000000000.0f;
+    private final float[] deltaRotationVector = new float[4];
+    private float timestamp;
+    private static final double EPSILON = 0.1f;
+
+
+
     private AndroidWearClient mAndroidWearClient;
     private ScheduledExecutorService mScheduler;
 
     private NotificationManager mNM;
+    private long[] numberOfData = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
     // Unique Identification Number for the Notification.
     // We use it on Notification start, and to cancel it.
     private int NOTIFICATION = R.string.local_service_started;
+    private StorageStatus storageStatus;
+    private boolean isStoreToLocal = false;
+    private int sensorFrequency;
+    private static final int NOTIFICATION_ID = 1;
+    private static final String GROUP_KEY_MESSAGES = "messages";
 
+
+    // angular speeds from gyro
+    private float[] gyro = new float[3];
+
+    // rotation matrix from gyro data
+    private float[] gyroMatrix = new float[9];
+
+    // orientation angles from gyro matrix
+    private float[] gyroOrientation = new float[3];
+
+    // magnetic field vector
+    private float[] magnet = new float[3];
+
+    // accelerometer vector
+    private float[] accel = new float[3];
+
+    // orientation angles from accel and magnet
+    private float[] accMagOrientation = new float[3];
+
+    // final orientation angles from sensor fusion
+    private float[] fusedOrientation = new float[3];
+
+    // accelerometer and magnetometer based rotation matrix
+    private float[] rotationMatrix = new float[9];
 
     @SuppressLint("LongLogTag")
     @Override
     public void onCreate() {
         super.onCreate();
         mAndroidWearClient = AndroidWearClient.getInstance(this);
-        Log.i(TAG,"Sensor remote connected");
-        Notification.Builder builder = new Notification.Builder(this);
-        builder.setContentTitle("AndroidWearSensor");
+        Log.i(TAG, "Sensor remote connected");
+        /*Notification.Builder builder = new Notification.Builder(this);
+        builder.setContentTitle("Streaming..");
         builder.setContentText("Collecting sensor data..");
         builder.setSmallIcon(R.mipmap.ic_launcher);
+*/
 
-        startForeground(1, builder.build());
+
+        PendingIntent conversationPendingIntent = getConversationPendingIntent("Sensing...", 0);
+
+        NotificationCompat.Builder notification = new NotificationCompat.Builder(this)
+                .setContentTitle("Streaming..")
+                .setContentText("Swip right to change")
+                .setSmallIcon(R.mipmap.ic_launcher)
+                .setContentIntent(conversationPendingIntent)
+                .setCategory(Notification.CATEGORY_MESSAGE)
+                .setPriority(Notification.PRIORITY_HIGH)
+                .setDefaults(Notification.DEFAULT_ALL);
+        //.build();
+
+        NotificationManagerCompat notificationManager = NotificationManagerCompat.from(this);
+        startForeground(NOTIFICATION_ID, notification.build());
 
         keepCPUAwake();
 
-        startSensorDataRecording();
+        //startSensorDataRecording();
+        storageStatus = new StorageStatus();
+        this.sensorFrequency = SENSOR_DELAY_NORMAL;
+        currentOrientationRotationMatrix = new MatrixF4x4();
 
-        //mNM = (NotificationManager)getSystemService(NOTIFICATION_SERVICE);
-
-        // Display a notification about us starting.  We put an icon in the status bar.
-        //showNotification();
     }
+
+
+    private PendingIntent getConversationPendingIntent(String chattingWith, int requestCode) {
+        Intent conversationIntent = new Intent(this, ListViewActivity.class);
+
+        if (chattingWith != null) {
+            //conversationIntent.putExtra(ListViewActivity.EXTRA_CHATTING_WITH, chattingWith);
+        }
+
+        TaskStackBuilder taskStackBuilder = TaskStackBuilder.create(this);
+        taskStackBuilder.addParentStack(ListViewActivity.class);
+        taskStackBuilder.addNextIntent(conversationIntent);
+
+        return taskStackBuilder.getPendingIntent(requestCode, PendingIntent.FLAG_CANCEL_CURRENT);
+    }
+
+
     @SuppressLint("LongLogTag")
     private void initializeSensorDataBatches() {
         sensorDataBatches = new HashMap<>();
@@ -106,12 +184,15 @@ public class SensorDataCollectionServices extends Service implements SensorEvent
         //for (Sensor sensor : availableSensors) {
         sensorDataBatches.put(Sensor.TYPE_ACCELEROMETER, getDataBatch(Sensor.TYPE_ACCELEROMETER));
         sensorDataBatches.put(Sensor.TYPE_GYROSCOPE, getDataBatch(Sensor.TYPE_GYROSCOPE));
+        sensorDataBatches.put(Sensor.TYPE_MAGNETIC_FIELD, getDataBatch(Sensor.TYPE_MAGNETIC_FIELD));
+        sensorDataBatches.put(Sensor.TYPE_ROTATION_VECTOR, getDataBatch(Sensor.TYPE_GAME_ROTATION_VECTOR));
 
-        Log.d(TAG,"sensor object created");
+
+        Log.d(TAG, "sensor object created");
         //}
     }
 
-    private void keepCPUAwake(){
+    private void keepCPUAwake() {
         PowerManager powerManager = (PowerManager) getSystemService(POWER_SERVICE);
         WakeLock wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,
                 TAG);
@@ -119,12 +200,25 @@ public class SensorDataCollectionServices extends Service implements SensorEvent
     }
 
     @Override
-    public int onStartCommand(Intent intent,  int flags, int startId) {
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        if (null == intent) {
+            String source = null == intent ? "intent" : "action";
+            Log.e(TAG, source + " was null, flags=" + flags + " bits=" + Integer.toBinaryString(flags));
+        } else {
+            Bundle extras = intent.getExtras();
+            if (extras != null) {
+                this.isStoreToLocal = (boolean) extras.getBoolean("isStorageLocal");
+                this.storageStatus.setStorageOnLocalWatch(this.isStoreToLocal);
+                this.sensorFrequency = (int) extras.getInt("frequency", SensorManager.SENSOR_DELAY_GAME);
+            }
+        }
+
+        startSensorDataRecording();
         return START_STICKY;
     }
 
     @Override
-    public void onDestroy(){
+    public void onDestroy() {
         super.onDestroy();
         //Log.d(TAG, "Destroy");
         //mNM.cancel(R.string.remote_service_started);
@@ -136,14 +230,16 @@ public class SensorDataCollectionServices extends Service implements SensorEvent
 
 
     @SuppressLint("LongLogTag")
-    protected void startSensorDataRecording(){
+    protected void startSensorDataRecording() {
         Log.d(TAG, "start data recording");
-        mSensorManager =(SensorManager)getSystemService(SENSOR_SERVICE);
+        mSensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
         mSensorNames = new SensorNames();
         initializeSensorDataBatches();
 
-        if(BuildConfig.DEBUG){
-        logAvailableSensors();
+        //this.storageStatus.setFinishedUnsentData(false);
+
+        if (BuildConfig.DEBUG) {
+            logAvailableSensors();
         }
 
         Sensor accelerometerSensor = mSensorManager.getDefaultSensor(SENSOR_ACCELEROMETER);
@@ -157,23 +253,29 @@ public class SensorDataCollectionServices extends Service implements SensorEvent
         mHeartrateSensor = mSensorManager.getDefaultSensor(SENSOR_HEARTRATE);
         Sensor heartrateSamsungSensor = mSensorManager.getDefaultSensor(65562);
         Sensor lightSensor = mSensorManager.getDefaultSensor(SENSOR_LIGHT);
-        Sensor linearAccelerationSensor = mSensorManager.getDefaultSensor(SENSOR_LINEAR_ACCELERATION);
+        Sensor linearAccelerationSensor = mSensorManager.getDefaultSensor(SENSOR_LINEAR_ACCELERATION);*/
         Sensor magneticFieldSensor = mSensorManager.getDefaultSensor(SENSOR_MAGNETIC_FIELD);
-        Sensor magneticFieldUncalibratedSensor = mSensorManager.getDefaultSensor(SENSOR_MAGNETIC_FIELD_UNCALLIBRATED);
+        /*Sensor magneticFieldUncalibratedSensor = mSensorManager.getDefaultSensor(SENSOR_MAGNETIC_FIELD_UNCALLIBRATED);
         Sensor pressureSensor = mSensorManager.getDefaultSensor(SENSOR_PRESSURE);
         Sensor proximitySensor = mSensorManager.getDefaultSensor(SENSOR_PROXIMITY);
-        Sensor humiditySensor = mSensorManager.getDefaultSensor(SENSOR_RELATIVE_HUMIDITY);
+        Sensor humiditySensor = mSensorManager.getDefaultSensor(SENSOR_RELATIVE_HUMIDITY);*/
         Sensor rotationVectorSensor = mSensorManager.getDefaultSensor(SENSOR_ROTATION_VECTOR);
-        Sensor significantMotionSensor = mSensorManager.getDefaultSensor(SENSOR_SIGNIFICANT_MOTION);
+       /* Sensor significantMotionSensor = mSensorManager.getDefaultSensor(SENSOR_SIGNIFICANT_MOTION);
         Sensor stepCounterSensor = mSensorManager.getDefaultSensor(SENSOR_STEP_COUNTER);
         Sensor stepDetectorSensor = mSensorManager.getDefaultSensor(SENSOR_STEP_DETECTOR);
         */
 
+        Log.d(TAG, "sensor frequency=" + this.sensorFrequency);
 
         // Register the listener
         if (mSensorManager != null) {
             if (accelerometerSensor != null) {
-                mSensorManager.registerListener(this, accelerometerSensor, SensorManager.SENSOR_DELAY_GAME);//.SENSENSOR_DELAY_FASTEST);
+
+
+                //mSensorManager.registerListener(this, accelerometerSensor, SensorManager.SENSOR_DELAY_FASTEST);//.SENSOR_DELAY_NORMAL);//SensorManager.SENSOR_DELAY_GAME);//.SENSENSOR_DELAY_FASTEST);
+                //mSensorManager.registerListener(this, accelerometerSensor, 16667);
+                mSensorManager.registerListener(this, accelerometerSensor, this.sensorFrequency);
+
             } else {
                 Log.w(TAG, "No Accelerometer found");
             }
@@ -202,8 +304,10 @@ public class SensorDataCollectionServices extends Service implements SensorEvent
                 Log.w(TAG, "No Gravity Sensor");
             }*/
 
-            if (gyroscopeSensor != null) {
-                mSensorManager.registerListener(this, gyroscopeSensor, SensorManager.SENSOR_DELAY_GAME);//.SENSOR_DELAY_FASTEST);
+            if (gyroscopeSensor != null) {//mSensorManager.registerListener(this, gyroscopeSensor, SensorManager.SENSOR_DELAY_FASTEST);//.SENSOR_DELAY_FASTEST);
+                // mSensorManager.registerListener(this,gyroscopeSensor,this.sensorFrequency);
+                //mSensorManager.registerListener(this, gyroscopeSensor, 16667);
+                mSensorManager.registerListener(this, gyroscopeSensor, this.sensorFrequency);
             } else {
                 Log.w(TAG, "No Gyroscope Sensor found");
             }
@@ -225,7 +329,7 @@ public class SensorDataCollectionServices extends Service implements SensorEvent
                             @Override
                             public void run() {
                                 Log.d(TAG, "register Heartrate Sensor");
-                                mSensorManager.registerListener(SensorDataCollectionServices.this, mHeartrateSensor, SensorManager.SENSOR_DELAY_FASTEST);
+                                mSensorManager.registerListener(SensorServices.this, mHeartrateSensor, SensorManager.SENSOR_DELAY_FASTEST);
 
                                 try {
                                     Thread.sleep(measurementDuration * 1000);
@@ -234,7 +338,7 @@ public class SensorDataCollectionServices extends Service implements SensorEvent
                                 }
 
                                 Log.d(TAG, "unregister Heartrate Sensor");
-                                mSensorManager.unregisterListener(SensorDataCollectionServices.this, mHeartrateSensor);
+                                mSensorManager.unregisterListener(SensorServices.this, mHeartrateSensor);
                             }
                         }, 3, measurementDuration + measurementBreak, TimeUnit.SECONDS);
 
@@ -258,14 +362,14 @@ public class SensorDataCollectionServices extends Service implements SensorEvent
                 mSensorManager.registerListener(this, linearAccelerationSensor, SensorManager.SENSOR_DELAY_NORMAL);
             } else {
                 Log.d(TAG, "No Linear Acceleration Sensor found");
-            }
+            }*/
 
             if (magneticFieldSensor != null) {
-                mSensorManager.registerListener(this, magneticFieldSensor, SensorManager.SENSOR_DELAY_NORMAL);
+                mSensorManager.registerListener(this, magneticFieldSensor, this.sensorFrequency);//SensorManager.SENSOR_DELAY_NORMAL);
             } else {
                 Log.d(TAG, "No Magnetic Field Sensor found");
             }
-
+/*
             if (magneticFieldUncalibratedSensor != null) {
                 mSensorManager.registerListener(this, magneticFieldUncalibratedSensor, SensorManager.SENSOR_DELAY_NORMAL);
             } else {
@@ -289,13 +393,13 @@ public class SensorDataCollectionServices extends Service implements SensorEvent
             } else {
                 Log.d(TAG, "No Humidity Sensor found");
             }
-
+*/
             if (rotationVectorSensor != null) {
-                mSensorManager.registerListener(this, rotationVectorSensor, SensorManager.SENSOR_DELAY_NORMAL);
+                mSensorManager.registerListener(this, rotationVectorSensor, this.sensorFrequency);
             } else {
                 Log.d(TAG, "No Rotation Vector Sensor found");
             }
-
+/*
             if (significantMotionSensor != null) {
                 mSensorManager.registerListener(this, significantMotionSensor, SensorManager.SENSOR_DELAY_NORMAL);
             } else {
@@ -356,16 +460,17 @@ public class SensorDataCollectionServices extends Service implements SensorEvent
     }*/
 
 
-
-    protected void stopSensorDataRecording(){
+    protected void stopSensorDataRecording() {
         Log.d(TAG, "stop data recording");
-        if(mSensorManager != null){
+        if (mSensorManager != null) {
             mSensorManager.unregisterListener(this);
         }
 
-        if(mScheduler != null && !mScheduler.isTerminated()){
+        if (mScheduler != null && !mScheduler.isTerminated()) {
             mScheduler.shutdown();
         }
+        // this.storageStatus.setFinishedUnsentData(true);
+        mAndroidWearClient.sendExistingSensorDataBeforeStop(this.isStoreToLocal, this.sensorDataBatches, Sensor.TYPE_ACCELEROMETER);
 
     }
 
@@ -374,18 +479,188 @@ public class SensorDataCollectionServices extends Service implements SensorEvent
 
     public void onSensorChanged(SensorEvent sensorEvent) {
 
-        Log.d(TAG, "new sensor event occured "+sensorEvent.sensor.getType());
-        float[] values = new float[sensorEvent.values.length];
-        System.arraycopy(sensorEvent.values, 0, values, 0, sensorEvent.values.length);
-        Data data = new Data(sensorEvent.sensor.getName(), values);
+        //Log.d(TAG, "new sensor event occured " + sensorEvent.sensor.getType());
 
-        Log.d(TAG,"data event:"+ Arrays.toString(values));
+        switch (sensorEvent.sensor.getType()) {
 
-        data.setAccuracy(sensorEvent.accuracy);
-        getDataBatch(sensorEvent.sensor.getType()).addData(data);
-        mAndroidWearClient.sendSensorData(this.sensorDataBatches,sensorEvent.sensor.getType(),sensorEvent.accuracy,sensorEvent.timestamp,sensorEvent.values);
-        //mAndroidWearClient.sendSensorData(sensorEvent.sensor.getType(),sensorEvent.accuracy,sensorEvent.timestamp,sensorEvent.values);
+            case Sensor.TYPE_ROTATION_VECTOR:
+                SensorManager.getRotationMatrixFromVector(currentOrientationRotationMatrix.matrix, sensorEvent.values);
+                //float[] angles = new float[3];
+                //SensorManager.getOrientation(currentOrientationRotationMatrix.matrix,angles);
 
+
+                float[] angles = new float[3];
+                SensorManager.getOrientation(currentOrientationRotationMatrix.matrix, angles);
+                //Log.d(TAG, "angles:" + Arrays.toString(angles));
+                numberOfData[sensorEvent.sensor.getType()]++;
+
+
+            /*float[] vals = new float[sensorEvent.values.length];
+            System.arraycopy(sensorEvent.values, 0, vals, 0, sensorEvent.values.length);
+            Log.d(TAG, "rotation vector value: " + Arrays.toString(vals));
+*/
+                //Log.d(TAG, "data event:" + Arrays.toString(values));
+
+                float[] degree = new float[3];
+                degree[0] = (float) (angles[0] * 180 / Math.PI);
+                degree[1] = (float) (angles[1] * 180 / Math.PI);
+                degree[2] = (float) (angles[2] * 180 / Math.PI);
+                Data data = new Data(sensorEvent.sensor.getName(), degree);
+                //Log.d(TAG, "timestamp(ms)=" + System.currentTimeMillis() + " sensorTimestamp(nano):" + sensorEvent.timestamp + " sensorType=" + sensorEvent.sensor.getType() + "angles:"+ Arrays.toString(degree));
+                Log.d(TAG, "angles:" + Arrays.toString(degree));
+                //Log.d(TAG, "pro_sto_data accelerometer= " + numberOfData[1] + " Gyroscope+" + numberOfData[4]);
+                //Log.d(TAG, "data_reporting: timestamp= " + System.currentTimeMillis() + " , sensorType= "+sensorEvent.sensor.getType()+ ", values=" +Arrays.toString(values));
+                //Logger.d(this,TAG,"timestamp= " + System.currentTimeMillis() + " , sensorType= "+sensorEvent.sensor.getType()+ ", values=" + Arrays.toString(values));
+                data.setAccuracy(sensorEvent.accuracy);
+                data.setSensorTimeStampNonoS(sensorEvent.timestamp);
+                getDataBatch(sensorEvent.sensor.getType()).addData(data);
+
+                mAndroidWearClient.sendSensorData(this.isStoreToLocal, this.sensorDataBatches, sensorEvent.sensor.getType());
+                break;
+            case Sensor.TYPE_ACCELEROMETER:
+                // copy new accelerometer data into accel array and calculate orientation
+                System.arraycopy(sensorEvent.values, 0, accel, 0, 3);
+                calculateAccMagOrientation();
+                break;
+
+            case Sensor.TYPE_GYROSCOPE:
+                // process gyro data
+                //gyroFunction(event);
+                break;
+
+            case Sensor.TYPE_MAGNETIC_FIELD:
+                // copy new magnetometer data into magnet array
+                System.arraycopy(sensorEvent.values, 0, magnet, 0, 3);
+                break;
+        }
+
+        /*if (sensorEvent.sensor.getType() == Sensor.TYPE_ROTATION_VECTOR) {
+            // convert the rotation-vector to a 4x4 matrix. the matrix
+            // is interpreted by Open GL as the inverse of the
+            // rotation-vector, which is what we want.
+            SensorManager.getRotationMatrixFromVector(currentOrientationRotationMatrix.matrix, sensorEvent.values);
+            //float[] angles = new float[3];
+            //SensorManager.getOrientation(currentOrientationRotationMatrix.matrix,angles);
+
+
+            float[] angles = new float[3];
+            SensorManager.getOrientation(currentOrientationRotationMatrix.matrix, angles);
+            //Log.d(TAG, "angles:" + Arrays.toString(angles));
+            numberOfData[sensorEvent.sensor.getType()]++;
+
+
+            *//*float[] vals = new float[sensorEvent.values.length];
+            System.arraycopy(sensorEvent.values, 0, vals, 0, sensorEvent.values.length);
+            Log.d(TAG, "rotation vector value: " + Arrays.toString(vals));
+*//*
+            //Log.d(TAG, "data event:" + Arrays.toString(values));
+
+            float[] degree = new float[3];
+            degree[0] = (float)(angles[0] * 180/Math.PI);
+            degree[1] = (float)(angles[1] * 180/Math.PI);
+            degree[2] = (float)(angles[2] * 180/Math.PI);
+            Data data = new Data(sensorEvent.sensor.getName(), degree);
+            //Log.d(TAG, "timestamp(ms)=" + System.currentTimeMillis() + " sensorTimestamp(nano):" + sensorEvent.timestamp + " sensorType=" + sensorEvent.sensor.getType() + "angles:"+ Arrays.toString(degree));
+            Log.d(TAG, "angles:"+ Arrays.toString(degree));
+            //Log.d(TAG, "pro_sto_data accelerometer= " + numberOfData[1] + " Gyroscope+" + numberOfData[4]);
+            //Log.d(TAG, "data_reporting: timestamp= " + System.currentTimeMillis() + " , sensorType= "+sensorEvent.sensor.getType()+ ", values=" +Arrays.toString(values));
+            //Logger.d(this,TAG,"timestamp= " + System.currentTimeMillis() + " , sensorType= "+sensorEvent.sensor.getType()+ ", values=" + Arrays.toString(values));
+            data.setAccuracy(sensorEvent.accuracy);
+            data.setSensorTimeStampNonoS(sensorEvent.timestamp);
+            getDataBatch(sensorEvent.sensor.getType()).addData(data);
+
+            mAndroidWearClient.sendSensorData(this.isStoreToLocal, this.sensorDataBatches, sensorEvent.sensor.getType());
+        }*/
+
+        /* if (sensorEvent.sensor.getType() == Sensor.TYPE_GYROSCOPE) {
+            if (timestamp != 0) {
+                final float dT = (sensorEvent.timestamp - timestamp) * NS2S;
+                // Axis of the rotation sample, not normalized yet.
+                float axisX = sensorEvent.values[0];
+                float axisY = sensorEvent.values[1];
+                float axisZ = sensorEvent.values[2];
+
+                // Calculate the angular speed of the sample
+                float omegaMagnitude = (float)Math.sqrt(axisX*axisX + axisY*axisY + axisZ*axisZ);
+
+                // Normalize the rotation vector if it's big enough to get the axis
+                // (that is, EPSILON should represent your maximum allowable margin of error)
+                if (omegaMagnitude > EPSILON) {
+                    axisX /= omegaMagnitude;
+                    axisY /= omegaMagnitude;
+                    axisZ /= omegaMagnitude;
+                }
+
+                // Integrate around this axis with the angular speed by the timestep
+                // in order to get a delta rotation from this sample over the timestep
+                // We will convert this axis-angle representation of the delta rotation
+                // into a quaternion before turning it into the rotation matrix.
+                double thetaOverTwo = omegaMagnitude * dT / 2.0f;
+                double sinThetaOverTwo = Math.sin(thetaOverTwo);
+                double cosThetaOverTwo = Math.cos(thetaOverTwo);
+                deltaRotationVector[0] = (float)sinThetaOverTwo * axisX;
+                deltaRotationVector[1] = (float)sinThetaOverTwo * axisY;
+                deltaRotationVector[2] = (float)sinThetaOverTwo * axisZ;
+                deltaRotationVector[3] = (float)cosThetaOverTwo;
+            }
+            timestamp = sensorEvent.timestamp;
+            Log.d(TAG, "gyroscode: "+Arrays.toString(deltaRotationVector));
+            float[] deltaRotationMatrix = new float[9];
+            //SensorManager.getRotationMatrixFromVector(deltaRotationMatrix, deltaRotationVector);
+            // User code should concatenate the delta rotation we computed with the current rotation
+            // in order to get the updated rotation.
+            // rotationCurrent = rotationCurrent * deltaRotationMatrix;
+        }*//*
+            Log.d(TAG, "angles:"+ Arrays.toString(angles));
+            numberOfData[sensorEvent.sensor.getType()]++;
+
+
+            //float[] vals = new float[sensorEvent.values.length];
+            //System.arraycopy(sensorEvent.values, 0, vals, 0, sensorEvent.values.length);
+
+            //Log.d(TAG, "data event:" + Arrays.toString(values));
+            Data data = new Data(sensorEvent.sensor.getName(), angles);
+
+            Log.d(TAG,"timestamp(ms)="+System.currentTimeMillis()+" sensorTimestamp(nano):"+sensorEvent.timestamp +" sensorType="+sensorEvent.sensor.getType());
+            Log.d(TAG, "pro_sto_data accelerometer= " + numberOfData[1] +" Gyroscope+"+numberOfData[4]);
+            //Log.d(TAG, "data_reporting: timestamp= " + System.currentTimeMillis() + " , sensorType= "+sensorEvent.sensor.getType()+ ", values=" +Arrays.toString(values));
+            //Logger.d(this,TAG,"timestamp= " + System.currentTimeMillis() + " , sensorType= "+sensorEvent.sensor.getType()+ ", values=" + Arrays.toString(values));
+            data.setAccuracy(sensorEvent.accuracy);
+            data.setSensorTimeStampNonoS(sensorEvent.timestamp);
+            getDataBatch(sensorEvent.sensor.getType()).addData(data);
+
+            mAndroidWearClient.sendSensorData(this.isStoreToLocal, this.sensorDataBatches, sensorEvent.sensor.getType());
+        }*//*
+        else {
+
+            numberOfData[sensorEvent.sensor.getType()]++;
+
+
+            float[] values = new float[sensorEvent.values.length];
+            System.arraycopy(sensorEvent.values, 0, values, 0, sensorEvent.values.length);
+
+            //Log.d(TAG, "data event:" + Arrays.toString(values));
+            Data data = new Data(sensorEvent.sensor.getName(), values);
+
+            Log.d(TAG, "timestamp(ms)=" + System.currentTimeMillis() + " sensorTimestamp(nano):" + sensorEvent.timestamp + " sensorType=" + sensorEvent.sensor.getType());
+            Log.d(TAG, "pro_sto_data accelerometer= " + numberOfData[1] + " Gyroscope+" + numberOfData[4]);
+            //Log.d(TAG, "data_reporting: timestamp= " + System.currentTimeMillis() + " , sensorType= "+sensorEvent.sensor.getType()+ ", values=" +Arrays.toString(values));
+            //Logger.d(this,TAG,"timestamp= " + System.currentTimeMillis() + " , sensorType= "+sensorEvent.sensor.getType()+ ", values=" + Arrays.toString(values));
+            data.setAccuracy(sensorEvent.accuracy);
+            data.setSensorTimeStampNonoS(sensorEvent.timestamp);
+            getDataBatch(sensorEvent.sensor.getType()).addData(data);
+
+            mAndroidWearClient.sendSensorData(this.isStoreToLocal, this.sensorDataBatches, sensorEvent.sensor.getType());
+            //}
+            //mAndroidWearClient.sendSensorData(sensorEvent.sensor.getType(),sensorEvent.accuracy,sensorEvent.timestamp,sensorEvent.values);
+
+        }*/
+    }
+
+    public void calculateAccMagOrientation() {
+        if (SensorManager.getRotationMatrix(rotationMatrix, null, accel, magnet)) {
+            SensorManager.getOrientation(rotationMatrix, accMagOrientation);
+        }
     }
     public DataBatch getDataBatch(int sensorType) {
         DataBatch dataBatch = sensorDataBatches.get(sensorType);
@@ -395,6 +670,7 @@ public class SensorDataCollectionServices extends Service implements SensorEvent
         }
         return dataBatch;
     }
+
     @Override
     public void onAccuracyChanged(Sensor sensor, int i) {
 
@@ -420,43 +696,11 @@ public class SensorDataCollectionServices extends Service implements SensorEvent
 
 
     private DataBatch createDataBatch(int sensorType) {
-        //Sensor sensor = mSensorManager.getDefaultSensor(sensorType);
-        //if (sensor == null) {
-        //    return null;
-        //}
+
         String sensorName = this.mSensorNames.getName(sensorType);
         DataBatch dataBatch = new DataBatch(sensorName);
         dataBatch.setType(sensorType);
         return dataBatch;
     }
-
-
-
-
-    /**
-     * Show a notification while this service is running.
-     */
-   /* private void showNotification() {
-        // In this sample, we'll use the same text for the ticker and the expanded notification
-        CharSequence text = getText(R.string.local_service_started);
-
-        // The PendingIntent to launch our activity if the user selects this notification
-        PendingIntent contentIntent = PendingIntent.getActivity(this, 0,
-                new Intent(this, MainWearActivity.class), 0);
-
-        // Set the info for the views that show in the notification panel.
-        Notification notification = new Notification.Builder(this)
-                .setSmallIcon(R.drawable.ringphone)  // the status icon
-                .setTicker(text)  // the status text
-                .setWhen(System.currentTimeMillis())  // the time stamp
-                .setContentTitle(getText(R.string.local_service_label))  // the label of the entry
-                .setContentText(text)  // the contents of the entry
-                .setContentIntent(contentIntent)  // The intent to send when the entry is clicked
-                .build();
-
-        // Send the notification.
-        mNM.notify(NOTIFICATION, notification);
-    }*/
-
 
 }

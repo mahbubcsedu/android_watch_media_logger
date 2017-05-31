@@ -6,6 +6,7 @@ package mahbub1.umbc.eclipse.sensordatashared.status;
 
 public class StorageStatus extends Status{
     private boolean storageOnLocalWatch = false;
+    private boolean finishedUnsentData = false;
 
     public StorageStatus() {
         this.storageOnLocalWatch = false;
@@ -17,5 +18,13 @@ public class StorageStatus extends Status{
 
     public void setStorageOnLocalWatch(boolean storageOnLocalWatch) {
         this.storageOnLocalWatch = storageOnLocalWatch;
+    }
+
+    public boolean isFinishedUnsentData() {
+        return finishedUnsentData;
+    }
+
+    public void setFinishedUnsentData(boolean finishedUnsentData) {
+        this.finishedUnsentData = finishedUnsentData;
     }
 }

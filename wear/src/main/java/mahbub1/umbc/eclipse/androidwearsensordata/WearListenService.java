@@ -13,16 +13,19 @@ import com.google.android.gms.wearable.DataMapItem;
 import com.google.android.gms.wearable.MessageEvent;
 import com.google.android.gms.wearable.WearableListenerService;
 
+import mahbub1.umbc.eclipse.sensordatashared.database.PreferenceData;
 import mahbub1.umbc.eclipse.sensordatashared.utils.DataMapFields;
 import mahbub1.umbc.eclipse.sensordatashared.utils.MessagePath;
+
+import static mahbub1.umbc.eclipse.sensordatashared.utils.DataTransferUtils.getDataFromMessageAsString;
 
 
 /**
  * Created by mahbub on 1/24/17.
  */
 @SuppressLint("LongLogTag")
-public class WearableMessageReceiveService extends WearableListenerService {
-    private static final String TAG = WearableMessageReceiveService.class.getSimpleName();
+public class WearListenService extends WearableListenerService {
+    private static final String TAG = WearListenService.class.getSimpleName();
 
     private AndroidWearClient androidWearClient;
 
@@ -70,16 +73,38 @@ public class WearableMessageReceiveService extends WearableListenerService {
     public void onMessageReceived(MessageEvent messageEvent){
         //super.onMessageReceived(messageEvent);
         Log.d(TAG, "Received Message: "+messageEvent.getPath());
+        final Intent intent = new Intent(this, SensorServices.class);
+
 
 
         if(messageEvent.getPath().equals(MessagePath.START_MEASUREMENT)){//getApplicationContext().getResources().getString(R.string.START_RECORDING_PATH))){
-            startService(new Intent(this, SensorDataCollectionServices.class));
+
+            String prefData = getDataFromMessageAsString(messageEvent.getData());
+            PreferenceData preferenceData = PreferenceData.fromJson(prefData);
+            int frequency = preferenceData.getSensor_frequency();
+            int delay = DataMapFields.getDelay(frequency);
+            preferenceData.isStorageLocationIsWatch();
+            intent.putExtra("isStorageLocal", preferenceData.isStorageLocationIsWatch());
+            intent.putExtra("frequency", delay);
+
+            startService(intent);
         }
         if(messageEvent.getPath().equals(MessagePath.STOP_MEASUREMENT)){//getApplicationContext().getResources().getString(R.string.STOP_RECORDING_PATH))){
-            stopService(new Intent(this, SensorDataCollectionServices.class));
-        }
-    }
 
+            Thread serviceStopThread = new Thread() {
+
+                @Override
+                public void run() {
+                    stopService(intent);
+                }
+            };
+            serviceStopThread.setPriority(10);
+            serviceStopThread.start();
+            Log.d(TAG, "service stop requested");
+
+        }
+
+    }
 
 
 }

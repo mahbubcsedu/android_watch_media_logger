@@ -28,7 +28,7 @@ import io.realm.Realm;
 import io.realm.RealmQuery;
 import io.realm.RealmResults;
 import mahbub1.umbc.eclipse.sensordatashared.data.Data;
-import mahbub1.umbc.eclipse.sensordatashared.data.WearableSensorDataList;
+import mahbub1.umbc.eclipse.sensordatashared.database.WearableSensorDataList;
 import mahbub1.umbc.eclipse.sensordatashared.database.WearableSensorData;
 import mahbub1.umbc.eclipse.sensordatashared.utils.DataTransferUtils;
 import mahbub1.umbc.eclipse.sensordatashared.utils.TransferSingleTon;
@@ -215,6 +215,37 @@ public class LocalToServerSync {
         query.equalTo("status", DataTransferUtils.STATUS_DATA_TRANSFER_INCOMPLETE);
         query.or().equalTo("status", DataTransferUtils.STATUS_DATA_TRANSFER_IN_QUEUE);
         query.or().equalTo("status", DataTransferUtils.STATUS_DATA_TRANSFER_READY);
+
+        final RealmResults<WearableSensorDataList> unsyncData = query.findAll();
+       /*realm.executeTransaction(new Realm.Transaction() {
+           @Override
+           public void execute(Realm realm) {
+
+                unsyncData = realm.where(WearableSensorDataList.class)
+                       .equalTo("status", DataTransferUtils.STATUS_DATA_TRANSFER_INCOMPLETE).findAll();
+           }});*/
+
+        return unsyncData;
+
+
+    }
+
+    /**
+     * @param beginingId : starting id of the filter
+     * @param endingId   : ending id of the range. if last entry, then -1
+     * @return list of objects within the range
+     */
+    public RealmResults<WearableSensorDataList> retrieveDatatoTransfer(long beginingId, long endingId) {
+
+
+        Realm realm = Realm.getDefaultInstance();
+        RealmQuery<WearableSensorDataList> query = realm.where(WearableSensorDataList.class);
+        query.equalTo("status", DataTransferUtils.STATUS_DATA_TRANSFER_INCOMPLETE);
+        query.or().equalTo("status", DataTransferUtils.STATUS_DATA_TRANSFER_IN_QUEUE);
+        query.or().equalTo("status", DataTransferUtils.STATUS_DATA_TRANSFER_READY);
+        query.or().greaterThan("id", beginingId);
+        if (endingId > 0)
+            query.or().lessThanOrEqualTo("id", endingId);
 
         final RealmResults<WearableSensorDataList> unsyncData = query.findAll();
        /*realm.executeTransaction(new Realm.Transaction() {

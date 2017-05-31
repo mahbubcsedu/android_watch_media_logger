@@ -9,6 +9,7 @@ public class Data {
     private String source;
     private float[] values;
     private int accuracy;
+    private long sensorTimeStampNonoS;
 
     public int getAccuracy() {
         return accuracy;
@@ -53,6 +54,14 @@ public class Data {
 
     public float[] getValues() {
         return values;
+    }
+
+    public long getSensorTimeStampNonoS() {
+        return sensorTimeStampNonoS;
+    }
+
+    public void setSensorTimeStampNonoS(long sensorTimeStampNonoS) {
+        this.sensorTimeStampNonoS = sensorTimeStampNonoS;
     }
 
     public void setValues(float[] values) {

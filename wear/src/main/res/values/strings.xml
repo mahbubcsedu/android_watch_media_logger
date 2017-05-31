@@ -9,4 +9,22 @@
     <string name="FILTER">filter</string>
     <string name="START_RECORDING_PATH">/start</string>
     <string name="STOP_RECORDING_PATH">/stop</string>
+    <string name="hello">Hello Wear</string>
+    <string name="local_service_started">Streaming....</string>
+    <string name="local_service_label">Sensors Service</string>
+    <string name="remote_service_stopped">remote stopped</string>
+    <string name="remote_service_started">started</string>
+
+    <string name="status_connected_pre">[REGISTERED_SENSORS] of [AVAILABLE_SENSORS] sensors</string>
+    <string name="status_connected_main">streaming</string>
+    <string name="status_connected_post">to [DEVICENAME]</string>
+
+    <string name="status_disconnected_pre">[AVAILABLE_SENSORS] sensors are</string>
+    <string name="status_disconnected_main">idle</string>
+    <string name="status_disconnected_post">waiting for requests</string>
+    <string name="main_text">Sensor App</string>
+    <string name="confirmation_text">Do you want to transfer data to server?</string>
+    <string name="success">Success</string>
+    <string name="failure">Failure</string>
+
 </resources>

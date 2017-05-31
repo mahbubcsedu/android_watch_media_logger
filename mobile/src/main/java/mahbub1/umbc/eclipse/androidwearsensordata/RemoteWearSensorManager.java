@@ -18,13 +18,17 @@ import com.google.android.gms.wearable.PutDataMapRequest;
 import com.google.android.gms.wearable.PutDataRequest;
 import com.google.android.gms.wearable.Wearable;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
+import io.realm.Realm;
 import mahbub1.umbc.eclipse.androidwearsensordata.data.Sensor;
 import mahbub1.umbc.eclipse.androidwearsensordata.data.SensorDataPoint;
 import mahbub1.umbc.eclipse.androidwearsensordata.data.SensorWithMappedIndex;
@@ -33,7 +37,9 @@ import mahbub1.umbc.eclipse.androidwearsensordata.events.BusProvider;
 import mahbub1.umbc.eclipse.androidwearsensordata.events.NewSensorEvent;
 import mahbub1.umbc.eclipse.androidwearsensordata.events.SensorUpdateEvent;
 import mahbub1.umbc.eclipse.androidwearsensordata.events.TagAddEvent;
-import mahbub1.umbc.eclipse.sensordatashared.data.PreferenceData;
+import mahbub1.umbc.eclipse.sensordatashared.database.PreferenceData;
+import mahbub1.umbc.eclipse.sensordatashared.database.SensorRecordingList;
+import mahbub1.umbc.eclipse.sensordatashared.database.WearableSensorDataList;
 import mahbub1.umbc.eclipse.sensordatashared.sensors.SensorNames;
 import mahbub1.umbc.eclipse.sensordatashared.sensors.SourceSensorTypeMap;
 import mahbub1.umbc.eclipse.sensordatashared.utils.DataMapFields;
@@ -59,6 +65,7 @@ public class RemoteWearSensorManager {
     private LinkedList<TagData> tags = new LinkedList<>();
     private SourceSensorTypeMap sourceSensorMapping;
     private ArrayList<SensorWithMappedIndex> mappedSensors;
+    private boolean actionStart = false;
 
     public static synchronized  RemoteWearSensorManager getInstance(Context context){
         if(instance == null){
@@ -177,6 +184,7 @@ public class RemoteWearSensorManager {
     }
 
     public void startMeasurement() {
+        actionStart = true;
         mExecutorService.submit(new Runnable() {
             @Override
             public void run() {
@@ -186,6 +194,7 @@ public class RemoteWearSensorManager {
     }
 
     public void stopMeasurement() {
+        actionStart = false;
         mExecutorService.submit(new Runnable() {
             @Override
             public void run() {
@@ -200,12 +209,47 @@ public class RemoteWearSensorManager {
 
     private String getPreferenceData(){
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(mContext);
-        String frequency=prefs.getString("frequency_key","-1");
+        String frequency = prefs.getString("frequency_key", "0");
         boolean storageLocation=prefs.getBoolean("storage_switch",false);
 
         PreferenceData preferenceData=new PreferenceData(Integer.parseInt(frequency),storageLocation);
         String preferenceString =preferenceData.toString();
+
+        if (actionStart) {
+            storeRecordingList(preferenceString);
+        }
+        
         return preferenceString;
+
+    }
+
+    private void storeRecordingList(final String pref) {
+        Date cureDate = new Date();
+        SimpleDateFormat dateFormat = new SimpleDateFormat("EEE, d MMM yyyy HH:mm:ss Z");
+        final String startDateTime = dateFormat.format(cureDate);
+        final Realm realm = Realm.getDefaultInstance();
+        realm.executeTransactionAsync(new Realm.Transaction() {
+            @Override
+            public void execute(Realm realm) {
+                AtomicLong productPrimaryKey = new AtomicLong(realm.where(SensorRecordingList.class).max("id") == null ? 0 : realm.where(SensorRecordingList.class).max("id").longValue() + 1);
+
+
+                long id = productPrimaryKey.getAndIncrement();
+
+                SensorRecordingList entry = realm.createObject(SensorRecordingList.class, id);
+
+                AtomicLong dataPreviousRecordId = new AtomicLong(realm.where(WearableSensorDataList.class).max("id") == null ? -1 : realm.where(WearableSensorDataList.class).max("id").longValue());
+
+                entry.setStartTime(startDateTime);
+                entry.setPreviousRecordingLastId(dataPreviousRecordId.longValue());
+                entry.setRecording("Recording number : " + id);
+                entry.setPreferences(pref);
+                //   }
+            }
+
+        });
+        realm.close();
+
 
     }
     private void controlMeasurementInBackground(final String path) {

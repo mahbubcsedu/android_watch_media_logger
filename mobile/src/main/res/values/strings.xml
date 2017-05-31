@@ -38,23 +38,34 @@
     <!-- Example settings for Data & Sync -->
     <string name="pref_header_data_sync">Data &amp; sync</string>
 
-    <string name="pref_title_sensor_frequency">Sync frequency</string>
+    <string name="pref_title_sensor_frequency">Sampling rate</string>
 
 
     <string-array name="pref_sensor_frequency">
-        <item>SENSOR_DELAY_FASTEST</item>
-        <item>SENSOR_DELAY_GAME</item>
-        <item>SENSOR_DELAY_NORMAL</item>
-        <item>SENSOR_DELAY_UI</item>
-
-        <item>Custom</item>
+        <item>0Hz</item>
+        <item>30Hz</item>
+        <item>15Hz</item>
+        <item>10Hz</item>
+        <item>60Hz</item>
+        <item>100Hz</item>
+        <item>Delay_GAME</item>
+        <item>Delay_FAST</item>
+        <item>Delay_NORMAL</item>
+        <item>Delay_UI</item>
     </string-array>
+
+
     <string-array  name="pref_sensor_frequency_list_value">
         <item>0</item>
         <item>1</item>
         <item>2</item>
         <item>3</item>
         <item>4</item>
+        <item>5</item>
+        <item>6</item>
+        <item>7</item>
+        <item>8</item>
+        <item>9</item>
 
     </string-array>
 

@@ -1,4 +1,4 @@
-package mahbub1.umbc.eclipse.sensordatashared.data;
+package mahbub1.umbc.eclipse.sensordatashared.database;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.ObjectMapper;

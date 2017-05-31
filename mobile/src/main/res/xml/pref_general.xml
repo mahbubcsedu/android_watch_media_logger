@@ -1,4 +1,5 @@
-<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:rsb="http://schemas.android.com/apk/res-auto">
 
     <CheckBoxPreference
         android:defaultValue="false"
@@ -30,4 +31,6 @@
         android:positiveButtonText="@null"
         android:title="@string/pref_title_sensor_frequency" />
 
+
+    />
 </PreferenceScreen>

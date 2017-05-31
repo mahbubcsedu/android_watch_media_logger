@@ -43,7 +43,8 @@ import io.realm.Realm;
 import io.realm.RealmResults;
 import mahbub1.umbc.eclipse.androidwearsensordata.R;
 import mahbub1.umbc.eclipse.sensordatashared.data.Data;
-import mahbub1.umbc.eclipse.sensordatashared.data.WearableSensorDataList;
+import mahbub1.umbc.eclipse.sensordatashared.database.WearableSensorDataList;
+import mahbub1.umbc.eclipse.sensordatashared.database.WearableSensorData;
 import mahbub1.umbc.eclipse.sensordatashared.serversync.LocalToServerSync;
 import mahbub1.umbc.eclipse.sensordatashared.utils.DataTransferUtils;
 
@@ -86,6 +87,21 @@ public class ExportActivity extends AppCompatActivity {
         setTitle("Export Data");
         Button exportButton = (Button) findViewById(R.id.exportButton);
         Button syncButton = (Button) findViewById(R.id.synceButton);
+        Button btnMarkAsSync = (Button) findViewById(R.id.btnMarkSync);
+        btnMarkAsSync.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Realm realm = Realm.getDefaultInstance();
+                realm.executeTransaction(new Realm.Transaction() {
+                    @Override
+                    public void execute(Realm realm) {
+                        WearableSensorDataList wearableSensorDataList = new WearableSensorDataList();
+                        wearableSensorDataList.setStatus(DataTransferUtils.STATUS_DATA_TRANSFER_COMPLETE);
+                        realm.copyToRealmOrUpdate(wearableSensorDataList);
+                    }
+                });
+            }
+        });
 
         syncButton.setOnClickListener(
                 new View.OnClickListener() {
@@ -104,7 +120,6 @@ public class ExportActivity extends AppCompatActivity {
                         t.start();
                     }
                 });
-
 
 
         exportButton.setOnClickListener(
@@ -135,9 +150,9 @@ public class ExportActivity extends AppCompatActivity {
             public void onClick(View v) {
 
                 Realm realm = Realm.getDefaultInstance();
-                realm.executeTransaction(new Realm.Transaction(){
+                realm.executeTransaction(new Realm.Transaction() {
                     @Override
-                    public void execute(Realm realm){
+                    public void execute(Realm realm) {
                         WearableSensorDataList wearableSensorDataList = new WearableSensorDataList();
                         wearableSensorDataList.setStatus(DataTransferUtils.STATUS_DATA_TRANSFER_INCOMPLETE);
                         realm.copyToRealmOrUpdate(wearableSensorDataList);
@@ -146,6 +161,32 @@ public class ExportActivity extends AppCompatActivity {
 
                 //Log.d(TAG, updatedrow + " sensor row fetched");
                 //Toast.makeText(mContext, updatedrow+ " rows marked as unsynced", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        Button btnDelete = (Button) findViewById(R.id.deleteButton);
+
+        Button btnDatabaseAsIs = (Button) findViewById(R.id.btnDatabaseWatch);
+
+        btnDatabaseAsIs.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                exportAsIsInDatabase();
+            }
+        });
+
+        btnDelete.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Realm realm = Realm.getDefaultInstance();
+                realm.executeTransaction(new Realm.Transaction() {
+                    @Override
+                    public void execute(Realm realm) {
+                        //WearableSensorDataList wearableSensorDataList = new WearableSensorDataList();
+                        //wearableSensorDataList.setStatus(DataTransferUtils.STATUS_DATA_TRANSFER_INCOMPLETE);
+                        realm.deleteAll();//.copyToRealmOrUpdate(wearableSensorDataList);
+                    }
+                });
             }
         });
         //Button btnMarkSynce = (Button) findViewById()
@@ -371,7 +412,6 @@ public class ExportActivity extends AppCompatActivity {
 */
 
 
-
     public String getSQL(JSONArray jsonArray) {
 
         return jsonArray.toString().replace("[", "(").replace("]", ")");
@@ -390,11 +430,11 @@ public class ExportActivity extends AppCompatActivity {
         return whereUpdate;*/
     }
 
-    private void exportFromRealm(){
+    private void exportFromRealm() {
 
 
         final RealmResults<WearableSensorDataList> result = localToServerSync.retrieveDatatoTransfer();
-        if(result.size()==0) return;
+        if (result.size() == 0) return;
         final int dataSize = result.size();
 
         final Gson gson = new Gson();
@@ -409,22 +449,22 @@ public class ExportActivity extends AppCompatActivity {
         });
 
 
-        int i=0;
-        for (WearableSensorDataList dataListJson : result)
-        {
-            Log.d(TAG, "retrieved data:"+dataListJson.getJsonAsString().toString());
+        int i = 0;
+        for (WearableSensorDataList dataListJson : result) {
+            Log.d(TAG, "retrieved data:" + dataListJson.getJsonAsString().toString());
 
             //int range = Math.min(i, unsyncData.size());
             final int progress = i;
 
-            Type listOfTestObject = new TypeToken<List<Data>>(){}.getType();
+            Type listOfTestObject = new TypeToken<List<Data>>() {
+            }.getType();
             List<Data> listOfData = gson.fromJson(dataListJson.getJsonAsString(), listOfTestObject);
             String sourcNodeId = dataListJson.getAndroidDevice();
             long id = dataListJson.getId();
 
-            Log.d(TAG, "data as list: "+listOfData.size()+"data"+listOfData.toArray().toString());
+            Log.d(TAG, "data as list: " + listOfData.size() + "data" + listOfData.toArray().toString());
 
-            localToServerSync.syncDataToServerAsJson(listOfData,sourcNodeId,id);
+            localToServerSync.syncDataToServerAsJson(listOfData, sourcNodeId, id);
 
 
             runOnUiThread(new Runnable() {
@@ -441,8 +481,7 @@ public class ExportActivity extends AppCompatActivity {
         }
 
 
-        runOnUiThread(new Runnable()
-        {
+        runOnUiThread(new Runnable() {
             @Override
             public void run() {
 
@@ -458,21 +497,7 @@ public class ExportActivity extends AppCompatActivity {
     }
 
 
-
-
-
-
-
-
-
-
-
-
-
-    private void exportFile() {
-
-        // mRealm = Realm.getInstance(this);
-
+    private void exportAsIsInDatabase() {
         RealmResults<WearableSensorDataList> result = localToServerSync.retrieveDatatoTransfer();
         final int total_row = result.size();
         final int total_col = 8;
@@ -514,16 +539,18 @@ public class ExportActivity extends AppCompatActivity {
                     }
                 });
 
-                StringBuffer sb = new StringBuffer(result.get(i).getAndroidDevice().toString());
-                sb.append(" ,");
-                sb.append(String.valueOf(result.get(i).getId()));
-                sb.append(" ,");
-                sb.append(String.valueOf(result.get(i).getAndroidDevice()));
-                sb.append(" ,");
-                sb.append(String.valueOf(result.get(i).getJsonAsString()));
-                sb.append(" ,");
-                sb.append(String.valueOf(result.get(i).getStatus()));
-                sb.append("\n");
+                StringBuffer sb = new StringBuffer();
+                final Gson gson = new Gson();
+                //WearableSensorData wearableSensorData;
+                //String sourcNodeId;
+                for (WearableSensorDataList dataListJson : result) {
+                    //sourcNodeId = dataListJson.getAndroidDevice();
+                    Type listOfTestObject = new TypeToken<List<Data>>() {
+                    }.getType();
+                    List<Data> dataList = gson.fromJson(dataListJson.getJsonAsString(), listOfTestObject);
+                    sb.append(dataList);
+                    sb.append("\n");
+                }
                 bw.write(sb.toString());
             }
             bw.flush();
@@ -557,6 +584,274 @@ public class ExportActivity extends AppCompatActivity {
         } catch (IOException ioe) {
             Log.e("AndroidWearSensorData", "IOException while writing Logfile");
         }
+    }
+
+    private void exportFile() {
+
+        // mRealm = Realm.getInstance(this);
+
+        RealmResults<WearableSensorDataList> result = localToServerSync.retrieveDatatoTransfer();
+        final int total_row = result.size();
+        final int total_col = 8;
+        Log.i("Android Sensors", "total_row = " + total_row);
+        final String fileprefix = "export";
+        final String date = new SimpleDateFormat("yyyyMMdd-HHmmss", Locale.getDefault()).format(new Date());
+        final String filename = String.format("%s_%s.csv", fileprefix, date);
+
+        final String directory = Environment.getExternalStorageDirectory().getAbsolutePath() + "/AndroidWearSensorData";
+
+        final File logfile = new File(directory, filename);
+        final File logPath = logfile.getParentFile();
+
+        if (!logPath.isDirectory() && !logPath.mkdirs()) {
+            Log.e("SensorDashbaord", "Could not create directory for log files");
+        }
+
+        try {
+            FileWriter filewriter = new FileWriter(logfile);
+            BufferedWriter bw = new BufferedWriter(filewriter);
+
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    dataProgressbar.setMax(total_row);
+                    dataProgressbar.setVisibility(View.VISIBLE);
+                    dataProgressbar.setProgress(0);
+                }
+            });
+
+            // Write the string to the file
+
+
+            //for (int i = 1; i < total_row; i++) {
+
+
+            final Gson gson = new Gson();
+            WearableSensorData wearableSensorData;
+            String sourcNodeId;
+            long dataId = 0;
+
+            StringBuffer sb = new StringBuffer();
+            //add heading row
+            sb.append("ID");
+            sb.append(" ,");
+
+            sb.append("timestamp (ms)");
+            sb.append(" ,");
+
+
+            sb.append("accuracy");
+            sb.append(" ,");
+
+            sb.append("Device Id");
+            sb.append(" ,");
+
+            sb.append("sensor value 1");
+            sb.append(" ,");
+
+            sb.append("sensor value 2");
+            sb.append(" ,");
+            sb.append("sensor value 3");
+            sb.append(" ,");
+            sb.append("sensor value 4");
+            sb.append(" ,");
+            sb.append("sensor value 5");
+            sb.append(" ,");
+            sb.append("sensor value 6");
+            sb.append(" ,");
+            sb.append("sensor value 7");
+            sb.append(" ,");
+            sb.append("sensor value 8");
+            sb.append(" ,");
+            sb.append("sensor value 9");
+            sb.append(" ,");
+
+            sb.append("Senor Name");
+            sb.append(" ,");
+
+            sb.append("timestamp (nanosecond)");
+            sb.append(" ,");
+
+            sb.append("\n");
+
+
+            int i = 0;
+
+            for (WearableSensorDataList dataListJson : result) {
+
+
+                final int progress = i;
+                i++;
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        dataProgressbar.setProgress(progress);
+                    }
+                });
+
+
+                sourcNodeId = dataListJson.getAndroidDevice();
+
+                Type listOfTestObject = new TypeToken<List<Data>>() {
+                }.getType();
+
+                List<Data> dataList = gson.fromJson(dataListJson.getJsonAsString(), listOfTestObject);
+
+                for (Data dataItem : dataList) {
+                    wearableSensorData = new WearableSensorData();
+                    wearableSensorData.setDatasource(dataItem.getSource());
+                    wearableSensorData.setAccuracy(dataItem.getAccuracy());
+                    wearableSensorData.setTimestamp(dataItem.getTimestamp());
+                    wearableSensorData.setAndroidDevice(sourcNodeId);
+
+                    wearableSensorData.setTbId(dataId);
+                    dataId++;
+
+                    wearableSensorData.setSensorTimestamp(dataItem.getSensorTimeStampNonoS());
+
+
+                    if (dataItem.getValues().length > 0) {
+                        wearableSensorData.setVal1(dataItem.getValues()[0]);
+                    } else {
+                        wearableSensorData.setVal1(0.0f);
+
+                    }
+
+                    if (dataItem.getValues().length > 1) {
+
+                        wearableSensorData.setVal2(dataItem.getValues()[1]);
+                    } else {
+                        wearableSensorData.setVal2(0.0f);
+
+                    }
+
+                    if (dataItem.getValues().length > 2) {
+
+                        wearableSensorData.setVal3(dataItem.getValues()[2]);
+                    } else {
+                        wearableSensorData.setVal3(0.0f);
+
+                    }
+
+                    if (dataItem.getValues().length > 3) {
+
+                        wearableSensorData.setVal4(dataItem.getValues()[3]);
+                    } else {
+                        wearableSensorData.setVal4(0.0f);
+
+                    }
+
+                    if (dataItem.getValues().length > 4) {
+
+                        wearableSensorData.setVal5(dataItem.getValues()[4]);
+                    } else {
+                        wearableSensorData.setVal5(0.0f);
+
+                    }
+                    if (dataItem.getValues().length > 5) {
+
+                        wearableSensorData.setVal6(dataItem.getValues()[5]);
+                    } else {
+                        wearableSensorData.setVal6(0.0f);
+
+                    }
+                    if (dataItem.getValues().length > 6) {
+
+                        wearableSensorData.setVal7(dataItem.getValues()[6]);
+                    } else {
+                        wearableSensorData.setVal7(0.0f);
+
+                    }
+                    if (dataItem.getValues().length > 7) {
+
+                        wearableSensorData.setVal8(dataItem.getValues()[7]);
+                    } else {
+                        wearableSensorData.setVal8(0.0f);
+
+                    }
+                    if (dataItem.getValues().length > 8) {
+
+                        wearableSensorData.setVal9(dataItem.getValues()[8]);
+                    } else {
+                        wearableSensorData.setVal9(0.0f);
+
+                    }
+
+                    sb.append(String.valueOf(wearableSensorData.getTbId()));
+                    sb.append(" ,");
+
+                    sb.append(String.valueOf(wearableSensorData.getTimestamp()));
+                    sb.append(" ,");
+
+
+                    sb.append(String.valueOf(wearableSensorData.getAccuracy()));
+                    sb.append(" ,");
+
+                    sb.append(String.valueOf(wearableSensorData.getAndroidDevice()));
+                    sb.append(" ,");
+
+                    sb.append(String.valueOf(wearableSensorData.getVal1()));
+                    sb.append(" ,");
+
+                    sb.append(String.valueOf(wearableSensorData.getVal2()));
+                    sb.append(" ,");
+                    sb.append(String.valueOf(wearableSensorData.getVal3()));
+                    sb.append(" ,");
+                    sb.append(String.valueOf(wearableSensorData.getVal4()));
+                    sb.append(" ,");
+                    sb.append(String.valueOf(wearableSensorData.getVal5()));
+                    sb.append(" ,");
+                    sb.append(String.valueOf(wearableSensorData.getVal6()));
+                    sb.append(" ,");
+                    sb.append(String.valueOf(wearableSensorData.getVal7()));
+                    sb.append(" ,");
+                    sb.append(String.valueOf(wearableSensorData.getVal8()));
+                    sb.append(" ,");
+                    sb.append(String.valueOf(wearableSensorData.getVal9()));
+                    sb.append(" ,");
+
+                    sb.append(String.valueOf(wearableSensorData.getDatasource()));
+                    sb.append(" ,");
+                    sb.append(String.valueOf(wearableSensorData.getSensorTimestamp()));
+                    sb.append(" ,");
+
+
+                    sb.append("\n");
+                }
+            }
+            bw.write(sb.toString());
+            // }
+            bw.flush();
+            bw.close();
+
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+
+                    new Handler().postDelayed(new Runnable() {
+                        @Override
+                        public void run() {
+                            dataProgressbar.setVisibility(View.GONE);
+                        }
+                    }, 1000);
+
+                }
+            });
+
+
+            Intent emailIntent = new Intent(Intent.ACTION_SEND);
+            emailIntent.setType("*/*");
+
+            emailIntent.putExtra(Intent.EXTRA_SUBJECT,
+                    filename);
+            emailIntent.putExtra(Intent.EXTRA_STREAM, Uri.fromFile(logfile));
+            startActivity(Intent.createChooser(emailIntent, "Send mail..."));
+
+
+            Log.i("AndroidWearSensorData", "export finished!");
+        } catch (IOException ioe) {
+            Log.e("AndroidWearSensorData", "IOException while writing Logfile");
+        }
 
 
     }
@@ -581,7 +876,6 @@ public class ExportActivity extends AppCompatActivity {
 
     }
 */
-
 
 
     /**
@@ -619,7 +913,6 @@ public class ExportActivity extends AppCompatActivity {
         AppIndex.AppIndexApi.end(client, getIndexApiAction());
         client.disconnect();
     }
-
 
 
 }

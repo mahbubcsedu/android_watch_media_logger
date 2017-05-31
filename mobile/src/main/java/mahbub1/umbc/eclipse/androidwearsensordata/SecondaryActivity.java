@@ -26,8 +26,6 @@ import com.squareup.otto.Subscribe;
 import java.util.ArrayList;
 import java.util.List;
 
-import io.realm.Realm;
-import io.realm.RealmConfiguration;
 import mahbub1.umbc.eclipse.androidwearsensordata.events.BusProvider;
 import mahbub1.umbc.eclipse.androidwearsensordata.events.DataBatchChangedEvent;
 import mahbub1.umbc.eclipse.androidwearsensordata.ui.ExportActivity;
@@ -74,11 +72,11 @@ public class SecondaryActivity extends AppCompatActivity implements BottomNaviga
         //mNavigationView.setNavigationItemSelectedListener(this);
         //mNavigationViewMenu = mNavigationView.getMenu();
 
-        Realm.init(this);
+        /*Realm.init(this);
         RealmConfiguration realmConfiguration = new RealmConfiguration.Builder().build();
         Realm.deleteRealm(realmConfiguration); // Clean slate
         Realm.setDefaultConfiguration(realmConfiguration);
-
+*/
         initToolbar();
         //initViewPager();
         //keep cpu awake while this app is running.
@@ -145,6 +143,9 @@ public class SecondaryActivity extends AppCompatActivity implements BottomNaviga
                             return true;
                         case R.id.action_settings:
                             startActivity(new Intent(SecondaryActivity.this,SettingsActivity.class));
+                            return true;
+                        case R.id.action_export_list:
+                            startActivity(new Intent(SecondaryActivity.this, RecordingListActivity.class));
                     }
 
                     return true;
